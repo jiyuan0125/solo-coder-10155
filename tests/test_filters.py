@@ -22,6 +22,7 @@ from django_filters.fields import (
 )
 from django_filters.filters import (
     AllValuesFilter,
+    AllValuesMultipleFilter,
     BaseCSVFilter,
     BaseInFilter,
     BaseRangeFilter,
@@ -1364,6 +1365,10 @@ class TimeRangeFilterTests(TestCase):
 
 
 class AllValuesFilterTests(TestCase):
+    def setUp(self):
+        AllValuesFilter.clear_choices_cache()
+        AllValuesMultipleFilter.clear_choices_cache()
+
     def test_default_field_without_assigning_model(self):
         f = AllValuesFilter()
         with self.assertRaises(AttributeError):

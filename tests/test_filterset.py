@@ -420,7 +420,7 @@ class FilterSetClassCreationTests(TestCase):
             self.assertEqual(filter_.lookup_expr, "icontains")
 
     def test_model_no_fields_or_exclude(self):
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
 
             class F(FilterSet):
                 class Meta:

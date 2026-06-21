@@ -79,9 +79,38 @@ class FilterSetMetaclass(type):
 
         new_class = super().__new__(cls, name, bases, attrs)
         new_class._meta = FilterSetOptions(getattr(new_class, "Meta", None))
-        new_class.base_filters = new_class.get_filters()
+        new_class._base_filters = None
+
+        if new_class._meta.model is not None:
+            fields = new_class._meta.fields
+            exclude = new_class._meta.exclude
+
+            if fields is None and exclude is None:
+                raise TypeError(
+                    "Setting 'Meta.model' without either 'Meta.fields' or 'Meta.exclude' "
+                    "has been deprecated since 0.15.0 and is now disallowed. Add an explicit "
+                    "'Meta.fields' or 'Meta.exclude' to the %s class." % new_class.__name__
+                )
+
+            try:
+                new_class._base_filters = new_class.get_filters()
+            except RuntimeError as e:
+                if "Django is most likely not initialized" in str(e):
+                    pass
+                else:
+                    raise
 
         return new_class
+
+    @property
+    def base_filters(cls):
+        if cls._base_filters is None:
+            cls._base_filters = cls.get_filters()
+        return cls._base_filters
+
+    @base_filters.setter
+    def base_filters(cls, value):
+        cls._base_filters = value
 
     @classmethod
     def get_declared_filters(cls, bases, attrs):
@@ -190,6 +219,10 @@ FILTER_FOR_DBFIELD_DEFAULTS = {
 class BaseFilterSet:
     FILTER_DEFAULTS = FILTER_FOR_DBFIELD_DEFAULTS
 
+    @property
+    def base_filters(self):
+        return type(self).base_filters
+
     def __init__(self, data=None, queryset=None, *, request=None, prefix=None):
         if queryset is None:
             queryset = self._meta.model._default_manager.all()
@@ -201,7 +234,7 @@ class BaseFilterSet:
         self.request = request
         self.form_prefix = prefix
 
-        self.filters = copy.deepcopy(self.base_filters)
+        self.filters = copy.deepcopy(type(self).base_filters)
 
         # propagate the model and filterset to the filters
         for filter_ in self.filters.values():
@@ -283,12 +316,6 @@ class BaseFilterSet:
         model = cls._meta.model
         fields = cls._meta.fields
         exclude = cls._meta.exclude
-
-        assert not (fields is None and exclude is None), (
-            "Setting 'Meta.model' without either 'Meta.fields' or 'Meta.exclude' "
-            "has been deprecated since 0.15.0 and is now disallowed. Add an explicit "
-            "'Meta.fields' or 'Meta.exclude' to the %s class." % cls.__name__
-        )
 
         # Setting exclude with no fields implies all other fields.
         if exclude is not None and fields is None:
@@ -436,8 +463,13 @@ class BaseFilterSet:
             return ChoiceFilter, {"choices": field.choices}
 
         if lookup_type == "isnull":
-            data = try_dbfield(DEFAULTS.get, models.BooleanField)
+            data = try_dbfield(DEFAULTS.get, field.__class__) or {}
+            if "isnull_filter_class" in data:
+                filter_class = data["isnull_filter_class"]
+                params = data.get("extra", lambda field: {})(field)
+                return filter_class, params
 
+            data = try_dbfield(DEFAULTS.get, models.BooleanField) or {}
             filter_class = data.get("filter_class")
             params = data.get("extra", lambda field: {})(field)
             return filter_class, params
