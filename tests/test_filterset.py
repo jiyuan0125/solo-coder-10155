@@ -151,7 +151,7 @@ class FilterSetFilterForFieldTests(TestCase):
         f = NetworkSetting._meta.get_field("mask")
         FilterSet._meta.unknown_field_behavior = UnknownFieldBehavior.RAISE
 
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
             FilterSet.filter_for_field(f, "mask")
 
         self.assertIn(
@@ -227,7 +227,7 @@ class HandleUnknownFieldTests(TestCase):
     def test_raise_unknown_field_behavior(self):
         self.FilterSet._meta.unknown_field_behavior = UnknownFieldBehavior.RAISE
 
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
             self.FilterSet.handle_unrecognized_field("mask", "test_message")
 
         self.assertIn(
@@ -420,7 +420,7 @@ class FilterSetClassCreationTests(TestCase):
             self.assertEqual(filter_.lookup_expr, "icontains")
 
     def test_model_no_fields_or_exclude(self):
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
 
             class F(FilterSet):
                 class Meta:

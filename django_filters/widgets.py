@@ -163,9 +163,13 @@ class BooleanWidget(forms.Select):
         super().__init__(attrs, choices)
 
     def render(self, name, value, attrs=None, renderer=None):
-        try:
-            value = {True: "true", False: "false", "1": "true", "0": "false"}[value]
-        except KeyError:
+        if isinstance(value, str):
+            value = value.lower()
+        if value in (True, "1", "true", "yes", "on", "t", "y"):
+            value = "true"
+        elif value in (False, "0", "false", "no", "off", "f", "n"):
+            value = "false"
+        else:
             value = ""
         return super().render(name, value, attrs, renderer=renderer)
 
@@ -174,14 +178,32 @@ class BooleanWidget(forms.Select):
         if isinstance(value, str):
             value = value.lower()
 
-        return {
+        TRUE_VALUES = {
             "1": True,
-            "0": False,
             "true": True,
-            "false": False,
+            "yes": True,
+            "on": True,
+            "t": True,
+            "y": True,
             True: True,
+        }
+        FALSE_VALUES = {
+            "0": False,
+            "false": False,
+            "no": False,
+            "off": False,
+            "f": False,
+            "n": False,
             False: False,
-        }.get(value, None)
+        }
+
+        if value in TRUE_VALUES:
+            return TRUE_VALUES[value]
+        if value in FALSE_VALUES:
+            return FALSE_VALUES[value]
+        if value in ("", None):
+            return None
+        return value
 
 
 class BaseCSVWidget(forms.Widget):
