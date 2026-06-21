@@ -79,9 +79,25 @@ class FilterSetMetaclass(type):
 
         new_class = super().__new__(cls, name, bases, attrs)
         new_class._meta = FilterSetOptions(getattr(new_class, "Meta", None))
-        new_class.base_filters = new_class.get_filters()
+
+        if new_class._meta.model is not None:
+            try:
+                new_class.get_fields()
+            except TypeError:
+                raise
+
+        try:
+            new_class._base_filters = new_class.get_filters()
+        except RuntimeError:
+            new_class._base_filters = None
 
         return new_class
+
+    @property
+    def base_filters(cls):
+        if cls._base_filters is None:
+            cls._base_filters = cls.get_filters()
+        return cls._base_filters
 
     @classmethod
     def get_declared_filters(cls, bases, attrs):
@@ -200,8 +216,9 @@ class BaseFilterSet:
         self.queryset = queryset
         self.request = request
         self.form_prefix = prefix
+        self._filter_cache = {}
 
-        self.filters = copy.deepcopy(self.base_filters)
+        self.filters = copy.deepcopy(type(self).base_filters)
 
         # propagate the model and filterset to the filters
         for filter_ in self.filters.values():
@@ -284,11 +301,12 @@ class BaseFilterSet:
         fields = cls._meta.fields
         exclude = cls._meta.exclude
 
-        assert not (fields is None and exclude is None), (
-            "Setting 'Meta.model' without either 'Meta.fields' or 'Meta.exclude' "
-            "has been deprecated since 0.15.0 and is now disallowed. Add an explicit "
-            "'Meta.fields' or 'Meta.exclude' to the %s class." % cls.__name__
-        )
+        if fields is None and exclude is None:
+            raise TypeError(
+                "Setting 'Meta.model' without either 'Meta.fields' or 'Meta.exclude' "
+                "has been deprecated since 0.15.0 and is now disallowed. Add an explicit "
+                "'Meta.fields' or 'Meta.exclude' to the %s class." % cls.__name__
+            )
 
         # Setting exclude with no fields implies all other fields.
         if exclude is not None and fields is None:
@@ -382,7 +400,7 @@ class BaseFilterSet:
     def handle_unrecognized_field(cls, field_name, message):
         behavior = cls._meta.unknown_field_behavior
         if behavior == UnknownFieldBehavior.RAISE:
-            raise AssertionError(message)
+            raise TypeError(message)
         elif behavior == UnknownFieldBehavior.WARN:
             warnings.warn(
                 f"Unrecognized field type for '{field_name}'. Field will be ignored."
@@ -436,8 +454,19 @@ class BaseFilterSet:
             return ChoiceFilter, {"choices": field.choices}
 
         if lookup_type == "isnull":
-            data = try_dbfield(DEFAULTS.get, models.BooleanField)
+            if hasattr(cls, "_meta"):
+                overrides = cls._meta.filter_overrides
+                for field_class in field.__class__.mro():
+                    if field_class is models.Field:
+                        continue
+                    if field_class in overrides:
+                        data = overrides[field_class]
+                        filter_class = data.get("filter_class")
+                        params = data.get("extra", lambda f: {})(field)
+                        if filter_class:
+                            return filter_class, params
 
+            data = try_dbfield(DEFAULTS.get, models.BooleanField)
             filter_class = data.get("filter_class")
             params = data.get("extra", lambda field: {})(field)
             return filter_class, params

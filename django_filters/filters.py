@@ -17,6 +17,7 @@ from .fields import (
     BaseCSVField,
     BaseRangeField,
     ChoiceField,
+    ChoiceIteratorMixin,
     DateRangeField,
     DateTimeRangeField,
     IsoDateTimeField,
@@ -181,6 +182,8 @@ class ChoiceFilter(Filter):
 
     def __init__(self, *args, **kwargs):
         self.null_value = kwargs.get("null_value", settings.NULL_CHOICE_VALUE)
+        if isinstance(self.field_class, type) and issubclass(self.field_class, ChoiceIteratorMixin):
+            kwargs.setdefault("null_value", self.null_value)
         super().__init__(*args, **kwargs)
 
     def filter(self, qs, value):
@@ -233,6 +236,8 @@ class MultipleChoiceFilter(Filter):
         kwargs.setdefault("distinct", True)
         self.conjoined = kwargs.pop("conjoined", False)
         self.null_value = kwargs.get("null_value", settings.NULL_CHOICE_VALUE)
+        if isinstance(self.field_class, type) and issubclass(self.field_class, ChoiceIteratorMixin):
+            kwargs.setdefault("null_value", self.null_value)
         super().__init__(*args, **kwargs)
 
     def is_noop(self, qs, value):
@@ -384,11 +389,17 @@ class ModelMultipleChoiceFilter(QuerySetRequestMixin, MultipleChoiceFilter):
 class NumberFilter(Filter):
     field_class = forms.DecimalField
 
+    def __init__(self, *args, max_value=1e50, **kwargs):
+        self.max_value = max_value
+        super().__init__(*args, **kwargs)
+
     def get_max_validator(self):
         """
         Return a MaxValueValidator for the field, or None to disable.
         """
-        return MaxValueValidator(1e50)
+        if self.max_value is None:
+            return None
+        return MaxValueValidator(self.max_value)
 
     @property
     def field(self):
@@ -540,18 +551,34 @@ class TimeRangeFilter(RangeFilter):
 class AllValuesFilter(ChoiceFilter):
     @property
     def field(self):
-        qs = self.model._default_manager.distinct()
-        qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
-        self.extra["choices"] = [(o, o) for o in qs]
+        cache_key = ("all_values", self.model, self.field_name)
+        cache = getattr(getattr(self, "parent", None), "_filter_cache", None)
+        if cache is not None and cache_key in cache:
+            self.extra["choices"] = cache[cache_key]
+        else:
+            qs = self.model._default_manager.distinct()
+            qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
+            choices = [(o, o) for o in qs]
+            if cache is not None:
+                cache[cache_key] = choices
+            self.extra["choices"] = choices
         return super().field
 
 
 class AllValuesMultipleFilter(MultipleChoiceFilter):
     @property
     def field(self):
-        qs = self.model._default_manager.distinct()
-        qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
-        self.extra["choices"] = [(o, o) for o in qs]
+        cache_key = ("all_values_multiple", self.model, self.field_name)
+        cache = getattr(getattr(self, "parent", None), "_filter_cache", None)
+        if cache is not None and cache_key in cache:
+            self.extra["choices"] = cache[cache_key]
+        else:
+            qs = self.model._default_manager.distinct()
+            qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
+            choices = [(o, o) for o in qs]
+            if cache is not None:
+                cache[cache_key] = choices
+            self.extra["choices"] = choices
         return super().field
 
 
