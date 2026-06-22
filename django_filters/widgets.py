@@ -172,14 +172,16 @@ class BooleanWidget(forms.Select):
     def value_from_datadict(self, data, files, name):
         value = data.get(name, None)
         if isinstance(value, str):
-            value = value.lower()
+            value_lower = value.lower()
+        else:
+            value_lower = value
 
         true_values = {"1", "true", "yes", "on", "t", "y", True}
         false_values = {"0", "false", "no", "off", "f", "n", False}
 
-        if value in true_values:
+        if value_lower in true_values:
             return True
-        if value in false_values:
+        if value_lower in false_values:
             return False
         if value in ("", None):
             return None

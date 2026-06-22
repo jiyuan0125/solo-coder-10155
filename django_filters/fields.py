@@ -322,3 +322,29 @@ class ModelMultipleChoiceField(ChoiceIteratorMixin, forms.ModelMultipleChoiceFie
         result = list(super()._check_values(value))
         result += [self.null_value] if null else []
         return result
+
+
+class BooleanField(forms.NullBooleanField):
+    """
+    A strict version of NullBooleanField that raises ValidationError for
+    unrecognized values instead of silently converting them to None.
+    """
+    TRUE_VALUES = {"1", "true", "yes", "on", "t", "y", True}
+    FALSE_VALUES = {"0", "false", "no", "off", "f", "n", False}
+    NULL_VALUES = {"", "none", "null", None}
+
+    def to_python(self, value):
+        if isinstance(value, str):
+            value_lower = value.lower()
+        else:
+            value_lower = value
+        if value_lower in self.NULL_VALUES:
+            return None
+        if value_lower in self.TRUE_VALUES:
+            return True
+        if value_lower in self.FALSE_VALUES:
+            return False
+        raise forms.ValidationError(
+            _("Enter a valid boolean value."),
+            code="invalid",
+        )

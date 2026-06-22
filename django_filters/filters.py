@@ -16,6 +16,7 @@ from .constants import EMPTY_VALUES
 from .fields import (
     BaseCSVField,
     BaseRangeField,
+    BooleanField,
     ChoiceField,
     ChoiceIteratorMixin,
     DateRangeField,
@@ -174,7 +175,7 @@ class CharFilter(Filter):
 
 
 class BooleanFilter(Filter):
-    field_class = forms.NullBooleanField
+    field_class = BooleanField
 
 
 class ChoiceFilter(Filter):
@@ -551,8 +552,12 @@ class TimeRangeFilter(RangeFilter):
 class AllValuesFilter(ChoiceFilter):
     @property
     def field(self):
-        cache_key = ("all_values", self.model, self.field_name)
-        cache = getattr(getattr(self, "parent", None), "_filter_cache", None)
+        cache = None
+        parent = getattr(self, "parent", None)
+        if parent is not None:
+            cache = getattr(type(parent), "_all_values_choices_cache", None)
+
+        cache_key = (self.model, self.field_name)
         if cache is not None and cache_key in cache:
             self.extra["choices"] = cache[cache_key]
         else:
@@ -568,8 +573,12 @@ class AllValuesFilter(ChoiceFilter):
 class AllValuesMultipleFilter(MultipleChoiceFilter):
     @property
     def field(self):
-        cache_key = ("all_values_multiple", self.model, self.field_name)
-        cache = getattr(getattr(self, "parent", None), "_filter_cache", None)
+        cache = None
+        parent = getattr(self, "parent", None)
+        if parent is not None:
+            cache = getattr(type(parent), "_all_values_choices_cache", None)
+
+        cache_key = (self.model, self.field_name)
         if cache is not None and cache_key in cache:
             self.extra["choices"] = cache[cache_key]
         else:

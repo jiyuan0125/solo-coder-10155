@@ -79,6 +79,7 @@ class FilterSetMetaclass(type):
 
         new_class = super().__new__(cls, name, bases, attrs)
         new_class._meta = FilterSetOptions(getattr(new_class, "Meta", None))
+        new_class._all_values_choices_cache = {}
 
         if new_class._meta.model is not None:
             try:
@@ -216,7 +217,6 @@ class BaseFilterSet:
         self.queryset = queryset
         self.request = request
         self.form_prefix = prefix
-        self._filter_cache = {}
 
         self.filters = copy.deepcopy(type(self).base_filters)
 
@@ -400,7 +400,7 @@ class BaseFilterSet:
     def handle_unrecognized_field(cls, field_name, message):
         behavior = cls._meta.unknown_field_behavior
         if behavior == UnknownFieldBehavior.RAISE:
-            raise TypeError(message)
+            assert False, message
         elif behavior == UnknownFieldBehavior.WARN:
             warnings.warn(
                 f"Unrecognized field type for '{field_name}'. Field will be ignored."
