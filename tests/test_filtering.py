@@ -111,14 +111,13 @@ class BooleanFilterTests(TestCase):
 
         qs = User.objects.all()
 
-        # '2' and '3' are how the field expects the data from the browser
         f = F({"is_active": "2"}, queryset=qs)
         self.assertQuerySetEqual(f.qs, ["jacob"], lambda o: o.username, False)
 
         f = F({"is_active": "3"}, queryset=qs)
         self.assertQuerySetEqual(f.qs, ["alex", "aaron"], lambda o: o.username, False)
 
-        f = F({"is_active": "1"}, queryset=qs)
+        f = F({"is_active": ""}, queryset=qs)
         self.assertQuerySetEqual(
             f.qs, ["alex", "aaron", "jacob"], lambda o: o.username, False
         )

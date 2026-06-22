@@ -11,6 +11,7 @@ from .constants import EMPTY_VALUES
 from .utils import handle_timezone
 from .widgets import (
     BaseCSVWidget,
+    BooleanWidget,
     CSVWidget,
     DateRangeWidget,
     LookupChoiceWidget,
@@ -329,8 +330,9 @@ class BooleanField(forms.NullBooleanField):
     A strict version of NullBooleanField that raises ValidationError for
     unrecognized values instead of silently converting them to None.
     """
-    TRUE_VALUES = {"1", "true", "yes", "on", "t", "y", True}
-    FALSE_VALUES = {"0", "false", "no", "off", "f", "n", False}
+    widget = BooleanWidget
+    TRUE_VALUES = {"1", "true", "yes", "on", "t", "y", True, "2"}
+    FALSE_VALUES = {"0", "false", "no", "off", "f", "n", False, "3"}
     NULL_VALUES = {"", "none", "null", None}
 
     def to_python(self, value):
