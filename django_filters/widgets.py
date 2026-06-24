@@ -174,14 +174,29 @@ class BooleanWidget(forms.Select):
         if isinstance(value, str):
             value = value.lower()
 
-        return {
+        if value in ("", None):
+            return None
+
+        result = {
             "1": True,
             "0": False,
             "true": True,
             "false": False,
             True: True,
             False: False,
-        }.get(value, None)
+            "yes": True,
+            "no": False,
+            "on": True,
+            "off": False,
+            "y": True,
+            "n": False,
+            "t": True,
+            "f": False,
+        }.get(value)
+
+        if result is None:
+            return value
+        return result
 
 
 class BaseCSVWidget(forms.Widget):

@@ -151,7 +151,7 @@ class FilterSetFilterForFieldTests(TestCase):
         f = NetworkSetting._meta.get_field("mask")
         FilterSet._meta.unknown_field_behavior = UnknownFieldBehavior.RAISE
 
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
             FilterSet.filter_for_field(f, "mask")
 
         self.assertIn(
@@ -227,7 +227,7 @@ class HandleUnknownFieldTests(TestCase):
     def test_raise_unknown_field_behavior(self):
         self.FilterSet._meta.unknown_field_behavior = UnknownFieldBehavior.RAISE
 
-        with self.assertRaises(AssertionError) as excinfo:
+        with self.assertRaises(TypeError) as excinfo:
             self.FilterSet.handle_unrecognized_field("mask", "test_message")
 
         self.assertIn(
@@ -420,11 +420,12 @@ class FilterSetClassCreationTests(TestCase):
             self.assertEqual(filter_.lookup_expr, "icontains")
 
     def test_model_no_fields_or_exclude(self):
-        with self.assertRaises(AssertionError) as excinfo:
+        class F(FilterSet):
+            class Meta:
+                model = Book
 
-            class F(FilterSet):
-                class Meta:
-                    model = Book
+        with self.assertRaises(TypeError) as excinfo:
+            F.base_filters
 
         self.assertIn(
             "Setting 'Meta.model' without either 'Meta.fields' or 'Meta.exclude'",
@@ -547,57 +548,61 @@ class FilterSetClassCreationTests(TestCase):
     def test_meta_fields_list_containing_unknown_fields(self):
         msg = "'Meta.fields' must not contain non-model field names: " "other, another"
 
+        class F(FilterSet):
+            username = CharFilter()
+
+            class Meta:
+                model = Book
+                fields = ("username", "price", "other", "another")
+
         with self.assertRaisesMessage(TypeError, msg):
-
-            class F(FilterSet):
-                username = CharFilter()
-
-                class Meta:
-                    model = Book
-                    fields = ("username", "price", "other", "another")
+            F.base_filters
 
     def test_meta_fields_dict_containing_unknown_fields(self):
         msg = "'Meta.fields' must not contain non-model field names: other"
 
-        with self.assertRaisesMessage(TypeError, msg):
+        class F(FilterSet):
+            class Meta:
+                model = Book
+                fields = {
+                    "id": ["exact"],
+                    "title": ["exact"],
+                    "other": ["exact"],
+                }
 
-            class F(FilterSet):
-                class Meta:
-                    model = Book
-                    fields = {
-                        "id": ["exact"],
-                        "title": ["exact"],
-                        "other": ["exact"],
-                    }
+        with self.assertRaisesMessage(TypeError, msg):
+            F.base_filters
 
     def test_meta_fields_dict_containing_declarative_alias(self):
         # Meta.fields dict cannot generate lookups for an *aliased* field
         msg = "'Meta.fields' must not contain non-model field names: other"
 
+        class F(FilterSet):
+            other = CharFilter()
+
+            class Meta:
+                model = Book
+                fields = {
+                    "id": ["exact"],
+                    "title": ["exact"],
+                    "other": ["exact"],
+                }
+
         with self.assertRaisesMessage(TypeError, msg):
-
-            class F(FilterSet):
-                other = CharFilter()
-
-                class Meta:
-                    model = Book
-                    fields = {
-                        "id": ["exact"],
-                        "title": ["exact"],
-                        "other": ["exact"],
-                    }
+            F.base_filters
 
     def test_meta_fields_invalid_lookup(self):
         # We want to ensure that non existent lookups (or just simple misspellings)
         # throw a useful exception containing the field and lookup expr.
         msg = "Unsupported lookup 'flub' for field 'tests.User.username'."
 
-        with self.assertRaisesMessage(FieldLookupError, msg):
+        class F(FilterSet):
+            class Meta:
+                model = User
+                fields = {"username": ["flub"]}
 
-            class F(FilterSet):
-                class Meta:
-                    model = User
-                    fields = {"username": ["flub"]}
+        with self.assertRaisesMessage(FieldLookupError, msg):
+            F.base_filters
 
     def test_meta_exclude_with_declared_and_declared_wins(self):
         class F(FilterSet):

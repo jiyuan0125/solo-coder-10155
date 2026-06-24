@@ -180,8 +180,18 @@ class ChoiceFilter(Filter):
     field_class = ChoiceField
 
     def __init__(self, *args, **kwargs):
-        self.null_value = kwargs.get("null_value", settings.NULL_CHOICE_VALUE)
+        self.null_value = kwargs.pop("null_value", settings.NULL_CHOICE_VALUE)
         super().__init__(*args, **kwargs)
+
+    def _supports_null_value(self):
+        from .fields import ChoiceIteratorMixin
+        return issubclass(self.field_class, ChoiceIteratorMixin)
+
+    @property
+    def field(self):
+        if not hasattr(self, "_field") and self._supports_null_value():
+            self.extra.setdefault("null_value", self.null_value)
+        return super().field
 
     def filter(self, qs, value):
         if value != self.null_value:
@@ -232,8 +242,18 @@ class MultipleChoiceFilter(Filter):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("distinct", True)
         self.conjoined = kwargs.pop("conjoined", False)
-        self.null_value = kwargs.get("null_value", settings.NULL_CHOICE_VALUE)
+        self.null_value = kwargs.pop("null_value", settings.NULL_CHOICE_VALUE)
         super().__init__(*args, **kwargs)
+
+    def _supports_null_value(self):
+        from .fields import ChoiceIteratorMixin
+        return issubclass(self.field_class, ChoiceIteratorMixin)
+
+    @property
+    def field(self):
+        if not hasattr(self, "_field") and self._supports_null_value():
+            self.extra.setdefault("null_value", self.null_value)
+        return super().field
 
     def is_noop(self, qs, value):
         """
@@ -383,12 +403,20 @@ class ModelMultipleChoiceFilter(QuerySetRequestMixin, MultipleChoiceFilter):
 
 class NumberFilter(Filter):
     field_class = forms.DecimalField
+    max_value = 1e50
+
+    def __init__(self, *args, **kwargs):
+        if "max_value" in kwargs:
+            self.max_value = kwargs.pop("max_value")
+        super().__init__(*args, **kwargs)
 
     def get_max_validator(self):
         """
         Return a MaxValueValidator for the field, or None to disable.
         """
-        return MaxValueValidator(1e50)
+        if self.max_value is None:
+            return None
+        return MaxValueValidator(self.max_value)
 
     @property
     def field(self):
@@ -540,18 +568,20 @@ class TimeRangeFilter(RangeFilter):
 class AllValuesFilter(ChoiceFilter):
     @property
     def field(self):
-        qs = self.model._default_manager.distinct()
-        qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
-        self.extra["choices"] = [(o, o) for o in qs]
+        if not hasattr(self, "_field"):
+            qs = self.model._default_manager.distinct()
+            qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
+            self.extra["choices"] = [(o, o) for o in qs]
         return super().field
 
 
 class AllValuesMultipleFilter(MultipleChoiceFilter):
     @property
     def field(self):
-        qs = self.model._default_manager.distinct()
-        qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
-        self.extra["choices"] = [(o, o) for o in qs]
+        if not hasattr(self, "_field"):
+            qs = self.model._default_manager.distinct()
+            qs = qs.order_by(self.field_name).values_list(self.field_name, flat=True)
+            self.extra["choices"] = [(o, o) for o in qs]
         return super().field
 
 

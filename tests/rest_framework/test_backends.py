@@ -116,8 +116,9 @@ class GetFilterClassTests(TestCase):
         queryset = FilterableItem.objects.all()
 
         msg = "'Meta.fields' must not contain non-model field names: non_existent"
+        filterset_class = backend.get_filterset_class(view, queryset)
         with self.assertRaisesMessage(TypeError, msg):
-            backend.get_filterset_class(view, queryset)
+            filterset_class.base_filters
 
     def test_filterset_fields_no_queryset(self):
         backend = DjangoFilterBackend()
